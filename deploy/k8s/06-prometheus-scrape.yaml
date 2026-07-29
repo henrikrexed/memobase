@@ -4,7 +4,7 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: memobase-metrics
-  namespace: memobase
+  namespace: benchmark-memobase
   labels:
     app: memobase-server-api
     release: prometheus

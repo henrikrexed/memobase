@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: memobase-config
-  namespace: memobase
+  namespace: benchmark-memobase
 data:
   config.yaml: |
     llm_api_key: ${LLM_API_KEY}
@@ -11,7 +11,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: memobase-server-api
-  namespace: memobase
+  namespace: benchmark-memobase
   labels:
     app: memobase-server-api
     app.kubernetes.io/part-of: memory-benchmark
@@ -50,20 +50,9 @@ spec:
             - containerPort: 9464
               name: prometheus
           env:
-            - name: DATABASE_URL
-              value: postgresql://$(DATABASE_USER):$(DATABASE_PASSWORD)@memobase-server-db:5432/$(DATABASE_NAME)
-            - name: REDIS_URL
-              value: redis://:$(REDIS_PASSWORD)@memobase-server-redis:6379/0
-            - name: ACCESS_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: memobase-secret
-                  key: ACCESS_TOKEN
-            - name: PROJECT_ID
-              valueFrom:
-                secretKeyRef:
-                  name: memobase-secret
-                  key: PROJECT_ID
+            # NOTE: DATABASE_URL / REDIS_URL use $(VAR) interpolation, which
+            # Kubernetes only resolves against vars defined EARLIER in this
+            # list. The referenced secret vars must therefore come first.
             - name: DATABASE_USER
               valueFrom:
                 secretKeyRef:
@@ -84,6 +73,20 @@ spec:
                 secretKeyRef:
                   name: memobase-secret
                   key: REDIS_PASSWORD
+            - name: DATABASE_URL
+              value: postgresql://$(DATABASE_USER):$(DATABASE_PASSWORD)@memobase-server-db:5432/$(DATABASE_NAME)
+            - name: REDIS_URL
+              value: redis://:$(REDIS_PASSWORD)@memobase-server-redis:6379/0
+            - name: ACCESS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: memobase-secret
+                  key: ACCESS_TOKEN
+            - name: PROJECT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: memobase-secret
+                  key: PROJECT_ID
             - name: LLM_API_KEY
               valueFrom:
                 secretKeyRef:
@@ -119,7 +122,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: memobase-server-api
-  namespace: memobase
+  namespace: benchmark-memobase
   labels:
     app: memobase-server-api
 spec:

@@ -1,11 +1,11 @@
 # Campaign runner job for memory-benchmark validation against memobase backend.
-# Requires: memobase-server-api service healthy in the memobase namespace.
-# Run: kubectl apply -f 05-campaign-runner-job.yaml -n memobase
+# Requires: memobase-server-api service healthy in the benchmark-memobase namespace.
+# Run: kubectl apply -f 05-campaign-runner-job.yaml -n benchmark-memobase
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: campaign-runner-memobase
-  namespace: memobase
+  namespace: benchmark-memobase
   labels:
     app: campaign-runner
     backend: memobase
@@ -35,7 +35,7 @@ spec:
             - "5"
           env:
             - name: MEMOBASE_BASE_URL
-              value: "http://memobase-server-api.memobase.svc.cluster.local:8000"
+              value: "http://memobase-server-api.benchmark-memobase.svc.cluster.local:8000"
             - name: MEMOBASE_ACCESS_TOKEN
               valueFrom:
                 secretKeyRef:
