@@ -39,10 +39,12 @@ spec:
           command: ['sh', '-c', 'until nc -z memobase-server-redis 6379; do echo waiting for redis; sleep 2; done']
       containers:
         - name: api
-          # Build from fork at feat/otel-memory-instrumentation (commit f96ebe2)
-          # Replace with published image once CI publishes it:
-          #   ghcr.io/henrikrexed/memobase:f96ebe2
-          image: ghcr.io/henrikrexed/memobase:f96ebe2
+          # Instrumented fork image (branch feat/otel-memory-instrumentation).
+          # NOTE: no ':f96ebe2' tag exists — f96ebe2 is a dangling pre-rebase
+          # commit; the on-branch instrumentation commit is eb83043. Publish per
+          # deploy/k8s/README.md ("Build the fork image") then set the real tag
+          # here. Default assumes the documented manual build tag:
+          image: ghcr.io/henrikrexed/memobase:otel-eb83043
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
