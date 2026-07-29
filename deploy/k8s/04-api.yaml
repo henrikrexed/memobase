@@ -1,0 +1,134 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: memobase-config
+  namespace: memobase
+data:
+  config.yaml: |
+    llm_api_key: ${LLM_API_KEY}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: memobase-server-api
+  namespace: memobase
+  labels:
+    app: memobase-server-api
+    app.kubernetes.io/part-of: memory-benchmark
+    app.kubernetes.io/component: memobase
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: memobase-server-api
+  template:
+    metadata:
+      labels:
+        app: memobase-server-api
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9464"
+        prometheus.io/path: "/metrics"
+    spec:
+      initContainers:
+        - name: wait-for-db
+          image: busybox:1.36
+          command: ['sh', '-c', 'until nc -z memobase-server-db 5432; do echo waiting for postgres; sleep 2; done']
+        - name: wait-for-redis
+          image: busybox:1.36
+          command: ['sh', '-c', 'until nc -z memobase-server-redis 6379; do echo waiting for redis; sleep 2; done']
+      containers:
+        - name: api
+          # Build from fork at feat/otel-memory-instrumentation (commit f96ebe2)
+          # Replace with published image once CI publishes it:
+          #   ghcr.io/henrikrexed/memobase:f96ebe2
+          image: ghcr.io/henrikrexed/memobase:f96ebe2
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+              name: http
+            - containerPort: 9464
+              name: prometheus
+          env:
+            - name: DATABASE_URL
+              value: postgresql://$(DATABASE_USER):$(DATABASE_PASSWORD)@memobase-server-db:5432/$(DATABASE_NAME)
+            - name: REDIS_URL
+              value: redis://:$(REDIS_PASSWORD)@memobase-server-redis:6379/0
+            - name: ACCESS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: memobase-secret
+                  key: ACCESS_TOKEN
+            - name: PROJECT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: memobase-secret
+                  key: PROJECT_ID
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: memobase-secret
+                  key: DATABASE_USER
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: memobase-secret
+                  key: DATABASE_PASSWORD
+            - name: DATABASE_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: memobase-secret
+                  key: DATABASE_NAME
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: memobase-secret
+                  key: REDIS_PASSWORD
+            - name: LLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: memobase-secret
+                  key: LLM_API_KEY
+            # OTel traces → benchmark collector
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector.observability.svc.cluster.local:4317"
+            - name: OTEL_SERVICE_NAME
+              value: "memobase"
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "deployment.environment=benchmark,service.version=f96ebe2"
+            - name: API_HOSTS
+              value: "*"
+            - name: USE_CORS
+              value: "true"
+          volumeMounts:
+            - name: config
+              mountPath: /app/config.yaml
+              subPath: config.yaml
+          readinessProbe:
+            httpGet:
+              path: /healthcheck
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+      volumes:
+        - name: config
+          configMap:
+            name: memobase-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: memobase-server-api
+  namespace: memobase
+  labels:
+    app: memobase-server-api
+spec:
+  selector:
+    app: memobase-server-api
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+    - name: prometheus
+      port: 9464
+      targetPort: 9464

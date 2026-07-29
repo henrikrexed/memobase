@@ -1,0 +1,73 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: memobase-postgres-pvc
+  namespace: memobase
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: memobase-postgres
+  namespace: memobase
+  labels:
+    app: memobase-postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: memobase-postgres
+  template:
+    metadata:
+      labels:
+        app: memobase-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: pgvector/pgvector:pg17
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: memobase-secret
+                  key: DATABASE_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: memobase-secret
+                  key: DATABASE_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: memobase-secret
+                  key: DATABASE_NAME
+          volumeMounts:
+            - name: pgdata
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "$(POSTGRES_USER)", "-d", "$(POSTGRES_DB)"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: pgdata
+          persistentVolumeClaim:
+            claimName: memobase-postgres-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: memobase-server-db
+  namespace: memobase
+spec:
+  selector:
+    app: memobase-postgres
+  ports:
+    - port: 5432
+      targetPort: 5432

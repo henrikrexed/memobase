@@ -1,0 +1,18 @@
+# ServiceMonitor for Prometheus Operator scraping memobase metrics on :9464
+# If using prometheus-operator. Otherwise annotations on the pod (04-api.yaml) handle scraping.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: memobase-metrics
+  namespace: memobase
+  labels:
+    app: memobase-server-api
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: memobase-server-api
+  endpoints:
+    - port: prometheus
+      path: /metrics
+      interval: 15s

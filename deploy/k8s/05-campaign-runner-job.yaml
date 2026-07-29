@@ -1,0 +1,52 @@
+# Campaign runner job for memory-benchmark validation against memobase backend.
+# Requires: memobase-server-api service healthy in the memobase namespace.
+# Run: kubectl apply -f 05-campaign-runner-job.yaml -n memobase
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: campaign-runner-memobase
+  namespace: memobase
+  labels:
+    app: campaign-runner
+    backend: memobase
+    app.kubernetes.io/part-of: memory-benchmark
+spec:
+  ttlSecondsAfterFinished: 3600
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app: campaign-runner
+        backend: memobase
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: campaign-runner
+          image: ghcr.io/henrikrexed/talk/mcp-memory-server:latest
+          command:
+            - python
+            - -m
+            - campaign_runner
+            - --backend
+            - memobase
+            - --campaign
+            - campaigns/example-s9-campaign.yaml
+            - --reps
+            - "5"
+          env:
+            - name: MEMOBASE_BASE_URL
+              value: "http://memobase-server-api.memobase.svc.cluster.local:8000"
+            - name: MEMOBASE_ACCESS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: memobase-secret
+                  key: ACCESS_TOKEN
+            - name: MEMOBASE_PROJECT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: memobase-secret
+                  key: PROJECT_ID
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector.observability.svc.cluster.local:4317"
+            - name: OTEL_SERVICE_NAME
+              value: "campaign-runner-memobase"

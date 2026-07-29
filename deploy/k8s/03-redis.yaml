@@ -1,0 +1,67 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: memobase-redis-pvc
+  namespace: memobase
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: memobase-redis
+  namespace: memobase
+  labels:
+    app: memobase-redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: memobase-redis
+  template:
+    metadata:
+      labels:
+        app: memobase-redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7.4
+          ports:
+            - containerPort: 6379
+          command:
+            - redis-server
+            - --requirepass
+            - $(REDIS_PASSWORD)
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: memobase-secret
+                  key: REDIS_PASSWORD
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: redis-data
+          persistentVolumeClaim:
+            claimName: memobase-redis-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: memobase-server-redis
+  namespace: memobase
+spec:
+  selector:
+    app: memobase-redis
+  ports:
+    - port: 6379
+      targetPort: 6379
